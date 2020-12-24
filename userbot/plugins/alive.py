@@ -22,11 +22,11 @@ async def amireallyalive(alive):
     if CAT_IMG:
         cat_caption = f"**{CUSTOM_ALIVE_TEXT}**\n\n"
         cat_caption += f"**{EMOJI} Database :** `{check_sgnirts}`\n"
-        cat_caption += f"**{EMOJI} Telethon version :** `{version.__version__}\n`"
-        cat_caption += f"**{EMOJI} Catuserbot Version :** `{catversion}`\n"
-        cat_caption += f"**{EMOJI} Python Version :** `{python_version()}\n`"
-        cat_caption += f"**{EMOJI} Uptime :** `{uptime}\n`"
-        cat_caption += f"**{EMOJI} Master:** {mention}\n"
+        cat_caption += f"**{EMOJI} Versi Telethon :** `{version.__version__}\n`"
+        cat_caption += f"**{EMOJI} Versi Bot :** `{catversion}`\n"
+        cat_caption += f"**{EMOJI} Versi Python :** `{python_version()}\n`"
+        cat_caption += f"**{EMOJI} UpTime Bot :** `{uptime}\n`"
+        cat_caption += f"**{EMOJI} UserBot:** {mention}\n"
         await alive.client.send_file(
             alive.chat_id, CAT_IMG, caption=cat_caption, reply_to=reply_to_id
         )
@@ -36,11 +36,11 @@ async def amireallyalive(alive):
             alive,
             f"**{CUSTOM_ALIVE_TEXT}**\n\n"
             f"**{EMOJI} Database :** `{check_sgnirts}`\n"
-            f"**{EMOJI} Telethon Version :** `{version.__version__}\n`"
-            f"**{EMOJI} Catuserbot Version :** `{catversion}`\n"
-            f"**{EMOJI} Python Version :** `{python_version()}\n`"
-            f"**{EMOJI} Uptime :** `{uptime}\n`"
-            f"**{EMOJI} Master:** {mention}\n",
+            f"**{EMOJI} Versi Telethon :** `{version.__version__}\n`"
+            f"**{EMOJI} Versi Bot :** `{catversion}`\n"
+            f"**{EMOJI} Versi Python :** `{python_version()}\n`"
+            f"**{EMOJI} UpTime Bot :** `{uptime}\n`"
+            f"**{EMOJI} UserBot:** {mention}\n",
         )
 
 
@@ -51,11 +51,11 @@ async def amireallyalive(alive):
         return
     tgbotusername = Config.TG_BOT_USER_NAME_BF_HER
     reply_to_id = await reply_id(alive)
-    cat_caption = f"**Catuserbot is Up and Running**\n"
-    cat_caption += f"**  -Telethon version :** `{version.__version__}\n`"
-    cat_caption += f"**  -Catuserbot Version :** `{catversion}`\n"
-    cat_caption += f"**  -Python Version :** `{python_version()}\n`"
-    cat_caption += f"**  -Master:** {mention}\n"
+    cat_caption = f"**NEKOBOT RUNNING SUCCESS**\n"
+    cat_caption += f"**  -Versi Telethon :** `{version.__version__}\n`"
+    cat_caption += f"**  -Versi Bot :** `{catversion}`\n"
+    cat_caption += f"**  -Versi Python :** `{python_version()}\n`"
+    cat_caption += f"**  -User Bot:** {mention}\n"
     results = await bot.inline_query(tgbotusername, cat_caption)  # pylint:disable=E0602
     await results[0].click(alive.chat_id, reply_to=reply_to_id, hide_via=True)
     await alive.delete()
