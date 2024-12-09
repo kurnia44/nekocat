@@ -1,4 +1,5 @@
 """command: .hack & .thack """
+
 # thx to @r4v4n4
 import asyncio
 

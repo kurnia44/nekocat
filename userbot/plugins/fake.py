@@ -70,7 +70,7 @@ async def _(event):
         to_promote_id = input_str
     try:
         await event.client(EditAdminRequest(event.chat_id, to_promote_id, rights, ""))
-    except (Exception) as exc:
+    except Exception as exc:
         await edit_or_reply(event, str(exc))
     else:
         await edit_or_reply(event, "Successfully Promoted")

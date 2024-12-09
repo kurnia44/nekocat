@@ -1,4 +1,5 @@
 """ plugin is modified by @sn12384 """
+
 import random
 import re
 
@@ -20,7 +21,9 @@ async def stretch(stret):
         return
 
     count = random.randint(3, 10)
-    reply_text = re.sub(r"([aeiouAEIOUａｅｉｏｕＡＥＩＯＵаеиоуюяыэё])", (r"\1" * count), message)
+    reply_text = re.sub(
+        r"([aeiouAEIOUａｅｉｏｕＡＥＩＯＵаеиоуюяыэё])", (r"\1" * count), message
+    )
     await edit_or_reply(stret, reply_text)
 
 
@@ -35,9 +38,7 @@ async def zal(zgfy):
     elif textx:
         message = textx.text
     else:
-        await edit_or_reply(
-            zgfy, "`gͫ ̆ i̛ ̺ v͇̆ ȅͅ   a̢ͦ   s̴̪ c̸̢ ä̸ rͩͣ y͖͞   t̨͚ é̠ x̢͖  t͔͛`"
-        )
+        await edit_or_reply(zgfy, "`gͫ ̆ i̛ ̺ v͇̆ ȅͅ   a̢ͦ   s̴̪ c̸̢ ä̸ rͩͣ y͖͞   t̨͚ é̠ x̢͖  t͔͛`")
         return
 
     for charac in message:
@@ -71,7 +72,9 @@ async def copypasta(cp_e):
     elif textx:
         message = textx.text
     else:
-        await edit_or_reply(cp_e, "`😂🅱️IvE👐sOME👅text👅for✌️Me👌tO👐MAkE👀iT💞funNy!💦`")
+        await edit_or_reply(
+            cp_e, "`😂🅱️IvE👐sOME👅text👅for✌️Me👌tO👐MAkE👀iT💞funNy!💦`"
+        )
         return
 
     reply_text = random.choice(fonts.EMOJIS)

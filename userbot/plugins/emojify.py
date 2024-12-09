@@ -3,6 +3,7 @@ Created by @Jisan7509
 modified by  @mrconfused
 Userbot plugin for CatUserbot
 """
+
 import emoji
 
 from . import fonts as emojify

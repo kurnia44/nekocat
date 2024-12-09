@@ -2,6 +2,7 @@
 credits to @mrconfused
 dont edit credits
 """
+
 #  Copyright (C) 2020  sandeep.n(π.$)
 
 import asyncio
@@ -185,9 +186,7 @@ async def gablist(event):
             if a_user.reason:
                 GBANNED_LIST += f"👉 [{a_user.chat_id}](tg://user?id={a_user.chat_id}) for {a_user.reason}\n"
             else:
-                GBANNED_LIST += (
-                    f"👉 [{a_user.chat_id}](tg://user?id={a_user.chat_id}) Reason None\n"
-                )
+                GBANNED_LIST += f"👉 [{a_user.chat_id}](tg://user?id={a_user.chat_id}) Reason None\n"
     else:
         GBANNED_LIST = "no Gbanned Users (yet)"
     if len(GBANNED_LIST) > 4095:

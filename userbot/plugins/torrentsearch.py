@@ -5,6 +5,7 @@ Note: Number of results are currently limited to 15
 By:-@Zero_cool7870
 
 """
+
 from datetime import datetime
 
 import cfscrape  # https://github.com/Anorov/cloudflare-scrape

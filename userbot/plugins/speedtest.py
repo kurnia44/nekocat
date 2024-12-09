@@ -1,6 +1,7 @@
 """Check your internet speed powered by speedtest.net
 Syntax: .speedtest
 Available Options: image, file, text"""
+
 from datetime import datetime
 
 import speedtest
@@ -89,7 +90,7 @@ __With the Following ERRORs__
 
 
 def convert_from_bytes(size):
-    power = 2 ** 10
+    power = 2**10
     n = 0
     units = {0: "", 1: "kilobytes", 2: "megabytes", 3: "gigabytes", 4: "terabytes"}
     while size > power:

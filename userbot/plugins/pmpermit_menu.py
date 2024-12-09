@@ -4,6 +4,7 @@ Used by incoming messages with trigger as /start
 Will not work for already approved people.
 Credits: written by ༺αиυвιѕ༻ {@A_Dark_Princ3}
 """
+
 import asyncio
 
 from telethon import events, functions

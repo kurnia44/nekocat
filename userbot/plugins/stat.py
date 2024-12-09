@@ -1,5 +1,6 @@
 """Count the Number of Dialogs you have in your Telegram Account
 Syntax: .stat"""
+
 import time
 
 from telethon.events import NewMessage

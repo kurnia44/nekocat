@@ -707,9 +707,9 @@ class googleimagesdownload:
                     + similar_images
                 )
                 headers = {}
-                headers[
-                    "User-Agent"
-                ] = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
+                headers["User-Agent"] = (
+                    "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
+                )
 
                 req1 = urllib.request.Request(searchUrl, headers=headers)
                 resp1 = urllib.request.urlopen(req1)
@@ -738,9 +738,9 @@ class googleimagesdownload:
                     + similar_images
                 )
                 headers = {}
-                headers[
-                    "User-Agent"
-                ] = "Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.27 Safari/537.17"
+                headers["User-Agent"] = (
+                    "Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.27 Safari/537.17"
+                )
 
                 req1 = urllib2.Request(searchUrl, headers=headers)
                 resp1 = urllib2.urlopen(req1)

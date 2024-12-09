@@ -4,7 +4,6 @@ Credit @Infinity20998
 Userbot plugin fot CatUserbot
 """
 
-
 import asyncio
 
 from . import ALIVE_NAME

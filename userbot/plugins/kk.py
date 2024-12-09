@@ -1,6 +1,5 @@
 """command: .kk By @Grandpaa_please """
 
-
 import random
 
 from telethon import events
