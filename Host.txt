@@ -177,6 +177,7 @@ k.gjacky.com
 !graph.facebook.com
 !mgl.public.igamecj.com
 !app.adjust.com
+!download.2.1375135419.igame.gcloudcs.com
 
 !whitelistsample.justasample.com
 !download.2.1375135419.igame.gcloudcs.com
