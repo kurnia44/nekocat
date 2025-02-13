@@ -1,4 +1,4 @@
-""" plugin is modified by @sn12384 """
+"""plugin is modified by @sn12384"""
 
 import random
 import re

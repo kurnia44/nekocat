@@ -1,7 +1,7 @@
 """Syntax : .gps <location name>
-  help from @sunda005 and @SpEcHIDe
-  credits :@mrconfused
-  don't edit credits"""
+help from @sunda005 and @SpEcHIDe
+credits :@mrconfused
+don't edit credits"""
 
 #    Copyright (C) 2020  sandeep.n(π.$)
 #    This program is free software: you can redistribute it and/or modify
