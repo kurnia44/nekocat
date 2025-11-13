@@ -40,10 +40,10 @@ function sendTelegramNotification(message) {
 }
 
 // ================================================================
-// --- FUNGSI BARU UNTUK LOGIKA TRIAL ---
+// --- FUNGSI BARU UNTUK LOGIKA TRIAL (DIMODIFIKASI) ---
 // ================================================================
 /**
- * Menangani logika untuk login trial 2x per deviceId.
+ * Menangani logika untuk login trial dinamis per deviceId.
  */
 function handleTrialLogic(deviceId) {
   try {
@@ -53,19 +53,35 @@ function handleTrialLogic(deviceId) {
     // Jika sheet "TrialUsers" tidak ada, buat secara otomatis
     if (!trialSheet) {
       trialSheet = ss.insertSheet(TRIAL_SHEET_NAME);
-      trialSheet.appendRow(["DeviceId", "LoginCount"]); // Buat header
+      // --- PERUBAHAN: Header baru (Kolom A, B, C, D, E) ---
+      trialSheet.getRange("A1:E1").setValues([
+        ["DeviceId", "LoginCount (Terpakai)", "MaxTrialLimit (Batas)", 2, "<- Default Trial (untuk user baru)"]
+      ]); 
+      trialSheet.getRange("A1:C1, E1").setFontWeight("bold");
+      trialSheet.getRange("D1").setFontWeight("bold").setFontColor("#ff0000"); // Beri warna merah pada angka
       Logger.log("Sheet " + TRIAL_SHEET_NAME + " berhasil dibuat.");
     }
 
     var data = trialSheet.getDataRange().getValues();
+    
+    // --- PERUBAHAN: Baca batas trial default dari header (Sel D1) ---
+    var defaultTrialLimit = 2; // Default fallback
+    if (data.length > 0 && data[0][3] && !isNaN(parseInt(data[0][3], 10))) {
+      // data[0][3] adalah baris pertama (indeks 0), kolom keempat (indeks 3) = Sel D1
+      defaultTrialLimit = parseInt(data[0][3], 10);
+    }
+    // --- AKHIR PERUBAHAN ---
+
     var userRow = -1; // Index baris user (1-based)
     var loginCount = 0;
+    var maxLimitForThisUser = 0; // Batas trial khusus untuk device ini
 
     // 1. Cari deviceId di sheet TrialUsers (mulai dari baris 1 untuk skip header)
     for (var i = 1; i < data.length; i++) {
       if (data[i][0] == deviceId) { // Kolom A: DeviceId
         userRow = i + 1; // (i adalah 0-based, +1 jadi 1-based untuk getRange)
-        loginCount = parseInt(data[i][1], 10) || 0; // Kolom B: LoginCount
+        loginCount = parseInt(data[i][1], 10) || 0; // Kolom B: LoginCount (Terpakai)
+        maxLimitForThisUser = parseInt(data[i][2], 10) || 0; // Kolom C: MaxTrialLimit (Batas)
         break;
       }
     }
@@ -74,40 +90,47 @@ function handleTrialLogic(deviceId) {
 
     if (userRow === -1) {
       // --- KASUS 1: USER TRIAL BARU (Login ke-1) ---
-      // Ini adalah login pertama. Catat deviceId dan set count = 1.
-      trialSheet.appendRow([deviceId, 1]); 
+      var newLoginCount = 1;
+      maxLimitForThisUser = defaultTrialLimit; // Gunakan default dari D1
+      
+      // Tulis baris baru: [deviceId, 1, (angka default dari D1)]
+      trialSheet.appendRow([deviceId, newLoginCount, maxLimitForThisUser]); 
+      
+      var sisaTrial = maxLimitForThisUser - newLoginCount;
+      sisaTrial = Math.max(0, sisaTrial); // Pastikan tidak negatif
       
       result = {
         status: "success",
-        message: "Trial berhasil. Sisa 1x login.",
-        expiryDate: "Trial", // Kirim data dummy
-        // remainingDays: 0, // Tidak perlu
-        remainingLogins: 1 // Kirim sisa login trial
+        message: "Trial berhasil. Sisa " + sisaTrial + "x login.",
+        expiryDate: "Trial", 
+        remainingLogins: sisaTrial
       };
-      sendTelegramNotification("🚀 TRIAL LOGIN (Baru)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> 1x");
+      sendTelegramNotification("🚀 TRIAL LOGIN (Baru)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
 
-    } else if (loginCount === 1) {
-      // --- KASUS 2: USER TRIAL LAMA (Login ke-2) ---
-      // Ini adalah login kedua (terakhir). Set count = 2.
-      trialSheet.getRange(userRow, 2).setValue(2); 
+    } else if (loginCount < maxLimitForThisUser) {
+      // --- KASUS 2: USER TRIAL LAMA (Masih ada jatah) ---
+      // 'maxLimitForThisUser' dibaca dari Kolom C baris ini
+      var newLoginCount = loginCount + 1;
+      trialSheet.getRange(userRow, 2).setValue(newLoginCount); // Update Kolom B
+      
+      var sisaTrial = maxLimitForThisUser - newLoginCount;
+      var pesan = (sisaTrial === 0) ? "Trial terakhir Anda berhasil." : "Trial berhasil. Sisa " + sisaTrial + "x login.";
       
       result = {
         status: "success",
-        message: "Trial terakhir Anda berhasil.",
+        message: pesan,
         expiryDate: "Trial",
-        // remainingDays: 0,
-        remainingLogins: 0 // Sisa login trial 0
+        remainingLogins: sisaTrial
       };
-      sendTelegramNotification("🚀 TRIAL LOGIN (Terakhir)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> 0x");
+      sendTelegramNotification("🚀 TRIAL LOGIN (Ulang)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
 
     } else {
-      // --- KASUS 3: JATAH TRIAL HABIS (Login ke-3 dst.) ---
-      // Login count >= 2. Jatah habis.
+      // --- KASUS 3: JATAH TRIAL HABIS (loginCount >= maxLimitForThisUser) ---
       result = {
         status: "error",
         message: "Masa trial Anda telah habis. Silakan beli token."
       };
-      sendTelegramNotification("❌ TRIAL GAGAL\n<b>Perangkat:</b> " + deviceId + "\n<b>Alasan:</b> Jatah trial habis.");
+      sendTelegramNotification("❌ TRIAL GAGAL\n<b>Perangkat:</b> " + deviceId + "\n<b>Alasan:</b> Jatah trial habis (" + loginCount + "/" + maxLimitForThisUser + "x).");
     }
 
     // Kembalikan hasil trial
@@ -126,36 +149,32 @@ function handleTrialLogic(deviceId) {
 
 /**
  * Fungsi utama yang menangani permintaan
- * (DIMODIFIKASI untuk menangani trial)
+ * (Tidak ada perubahan di sini, hanya memanggil fungsi di atas)
  */
 function doGet(e) {
   // 1. Ambil parameter
   var token = e.parameter.token;
-  var deviceId = e.parameter.deviceId; // Ambil deviceId baru dari frontend
+  var deviceId = e.parameter.deviceId; 
 
   // ================================================================
-  // --- PERUBAHAN: INTERSEP PERMINTAAN TRIAL ---
+  // --- INTERSEP PERMINTAAN TRIAL ---
   // ================================================================
   if (token === "TRIAL_REQUEST") {
-    // Jika token adalah "TRIAL_REQUEST", panggil fungsi trial
     if (!deviceId) {
-       // Perlu deviceId untuk trial
        var errorResult = { status: "error", message: "DeviceId tidak ditemukan untuk trial." };
        return ContentService.createTextOutput(JSON.stringify(errorResult))
          .setMimeType(ContentService.MimeType.JSON);
     }
-    // Panggil fungsi trial dan langsung kembalikan hasilnya
     return handleTrialLogic(deviceId);
   }
   // ================================================================
-  // --- AKHIR PERUBAHAN ---
+  // --- AKHIR BLOK TRIAL ---
   // ================================================================
 
   // Jika token BUKAN "TRIAL_REQUEST", jalankan logika token normal Anda
   
   // 2. Akses Spreadsheet
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
-  // --- PERUBAHAN: Ambil 5 kolom (A, B, C, D, E) ---
   var dataRange = sheet.getRange(1, 1, sheet.getLastRow(), 5); 
   var values = dataRange.getValues();
 
@@ -163,13 +182,10 @@ function doGet(e) {
   var result = {
     status: "error",
     message: "Token tidak ditemukan"
-    // expiryDate: null,
-    // remainingDays: 0,
-    // remainingLogins: 0 
   };
 
   var today = new Date();
-  today.setHours(0, 0, 0, 0); // Set ke awal hari ini
+  today.setHours(0, 0, 0, 0); 
   var tokenFound = false;
 
   // 4. Loop untuk memeriksa token, tanggal, dan deviceId
@@ -184,18 +200,12 @@ function doGet(e) {
 
     if (sheetToken == token) {
       tokenFound = true;
-
-      // --- HITUNG SISA HARI (untuk dikirim nanti) ---
-      // (Perhitungan sisa hari saya pindahkan ke sini agar selalu terhitung)
       var remainingDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
       
-      // --- PENGECEKAN BERTINGKAT ---
-
       if (expiryDate < today) {
         // Kasus 1: Token ditemukan TAPI kedaluwarsa
         result.status = "error";
         result.message = "Token telah kedaluwarsa";
-        // (Notifikasi telegram tidak ada di sini, saya biarkan)
       
       } else if (typeof loginLimit === 'number' && loginLimit > 0 && typeof loginCount === 'number' && loginCount >= loginLimit) {
         // Kasus 1b: Token valid, TAPI batas login habis
@@ -207,18 +217,14 @@ function doGet(e) {
         // Kasus 2: Token valid, belum kedaluwarsa, BELUM DIKLAIM, dan batas login OK
         
         var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
-        sheet.getRange(i + 1, 5).setValue(newLoginCount); // Tulis jumlah baru
+        sheet.getRange(i + 1, 5).setValue(newLoginCount); 
         sheet.getRange(i + 1, 3).setValue(deviceId); 
         
         result.status = "success";
         result.message = "Token diterima dan berhasil dikunci ke perangkat ini.";
         
-        // --- (PERUBAHAN: Menggunakan format DD MMMM YYYY agar konsisten) ---
         var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
         result.expiryDate = formattedExpiry;
-        // result.remainingDays = remainingDays; // (Frontend tidak menggunakan ini, tapi saya biarkan di-pass)
-        
-        // (Logika sisa login Anda sudah benar)
         result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited"; 
 
         sendTelegramNotification("✅ LOGIN BERHASIL (Klaim Baru)\n<b>Token:</b> " + token + "\n<b>Perangkat:</b> " + deviceId + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
@@ -227,16 +233,13 @@ function doGet(e) {
         // Kasus 3: Token valid, DAN deviceId cocok
         
         var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
-        sheet.getRange(i + 1, 5).setValue(newLoginCount); // Tulis jumlah baru
+        sheet.getRange(i + 1, 5).setValue(newLoginCount); 
 
         result.status = "success";
         result.message = "Token diterima";
         
-        // --- (PERUBAHAN: Menggunakan format DD MMMM YYYY agar konsisten) ---
         var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
         result.expiryDate = formattedExpiry;
-        // result.remainingDays = remainingDays;
-        
         result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited";
 
         sendTelegramNotification("✅ LOGIN BERHASIL (Ulang)\n<b>Token:</b> " + token + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
@@ -253,7 +256,7 @@ function doGet(e) {
   }
 
   // Jika token tidak ditemukan sama sekali
-  if (!tokenFound && token) { // Hanya kirim notif jika token diisi
+  if (!tokenFound && token) { 
     sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Token tidak ditemukan.");
   }
 
