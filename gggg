@@ -1,0 +1,155 @@
+// --- KONFIGURASI ---
+// 1. Masukkan Token Bot Anda dari @BotFather
+var TELEGRAM_BOT_TOKEN = ":AAFTyfRG9B5mZi04M_2feIr4_JxQ7X9pikM";
+
+// 2. Masukkan Chat ID Anda (angka)
+var CHAT_ID = "";
+
+// 3. Ganti jika nama sheet Anda berbeda
+var SHEET_NAME = "Sheet1";
+// --------------------
+
+/**
+ * Fungsi untuk mengirim notifikasi ke Telegram
+ */
+function sendTelegramNotification(message) {
+  if (TELEGRAM_BOT_TOKEN === ":AAFTyfRG9B5mZi04M_2feIr4_JxQ7X9pikM" || CHAT_ID === "") {
+    Logger.log("Token Bot/Chat ID belum diatur. Melewatkan notifikasi.");
+    return; // Jangan kirim jika belum diatur
+  }
+
+  var url = "https.api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage";
+  var payload = {
+    method: "post",
+    payload: {
+      chat_id: String(CHAT_ID),
+      text: message,
+      parse_mode: "HTML"
+    }
+  };
+
+  try {
+    UrlFetchApp.fetch(url, payload);
+  } catch (e) {
+    Logger.log("Gagal mengirim notifikasi Telegram: " + e);
+  }
+}
+
+/**
+ * Fungsi utama yang menangani permintaan
+ */
+function doGet(e) {
+  // 1. Ambil parameter
+  var token = e.parameter.token;
+  var deviceId = e.parameter.deviceId; // Ambil deviceId baru dari frontend
+
+  // 2. Akses Spreadsheet
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  // --- PERUBAHAN: Ambil 5 kolom (A, B, C, D, E) ---
+  var dataRange = sheet.getRange(1, 1, sheet.getLastRow(), 5); 
+  var values = dataRange.getValues();
+
+  // 3. Siapkan variabel hasil
+  var result = {
+    status: "error",
+    message: "Token tidak ditemukan"
+    // expiryDate: null,
+    // remainingDays: 0,
+    // remainingLogins: 0 
+  };
+
+  var today = new Date();
+  today.setHours(0, 0, 0, 0); // Set ke awal hari ini
+  var tokenFound = false;
+
+  // 4. Loop untuk memeriksa token, tanggal, dan deviceId
+  for (var i = 0; i < values.length; i++) {
+    var sheetToken = values[i][0];     // Kolom A
+    var expiryDate = new Date(values[i][1]); // Kolom B
+    var storedDeviceId = values[i][2]; // Kolom C
+    var loginLimit = values[i][3]; // Kolom D (Batas Maks)
+    var loginCount = values[i][4]; // Kolom E (Jumlah Terpakai)
+
+    expiryDate.setHours(0, 0, 0, 0);
+
+    if (sheetToken == token) {
+      tokenFound = true;
+
+      // --- HITUNG SISA HARI (untuk dikirim nanti) ---
+      var remainingDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+      
+      // --- PENGECEKAN BERTINGKAT ---
+
+      if (expiryDate < today) {
+        // Kasus 1: Token ditemukan TAPI kedaluwarsa
+        result.status = "error";
+        result.message = "Token telah kedaluwarsa";
+      
+      } else if (typeof loginLimit === 'number' && loginLimit > 0 && typeof loginCount === 'number' && loginCount >= loginLimit) {
+        // Kasus 1b: Token valid, TAPI batas login habis
+        result.status = "error";
+        result.message = "Token telah mencapai batas penggunaan login.";
+        sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Batas penggunaan login ("+loginLimit+") telah habis.");
+
+      } else if (storedDeviceId == "") {
+        // Kasus 2: Token valid, belum kedaluwarsa, BELUM DIKLAIM, dan batas login OK
+        
+        var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
+        sheet.getRange(i + 1, 5).setValue(newLoginCount); // Tulis jumlah baru
+        sheet.getRange(i + 1, 3).setValue(deviceId); 
+        
+        result.status = "success";
+        result.message = "Token diterima dan berhasil dikunci ke perangkat ini.";
+        
+        result.expiryDate = expiryDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
+        result.remainingDays = remainingDays;
+        result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "∞"; // Sisa login
+
+        // --- PERUBAHAN: Menambahkan info Expired ke log Telegram ---
+        sendTelegramNotification("✅ LOGIN BERHASIL (Klaim Baru)\n<b>Token:</b> " + token + "\n<b>Perangkat:</b> " + deviceId + "\n<b>Expired:</b> " + result.expiryDate + "\n<b>Sisa Login:</b> " + result.remainingLogins);
+
+      } else if (storedDeviceId == deviceId) {
+        // Kasus 3: Token valid, DAN deviceId cocok
+        
+        var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
+        sheet.getRange(i + 1, 5).setValue(newLoginCount); // Tulis jumlah baru
+
+        result.status = "success";
+        result.message = "Token diterima";
+        
+        result.expiryDate = expiryDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
+        result.remainingDays = remainingDays;
+        result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "∞"; // Sisa login
+
+        // --- PERUBAHAN: Menambahkan info Expired ke log Telegram ---
+        sendTelegramNotification("✅ LOGIN BERHASIL (Ulang)\n<b>Token:</b> " + token + "\n<b>Expired:</b> " + result.expiryDate + "\n<b>Sisa Login:</b> " + result.remainingLogins);
+
+      } else {
+        // Kasus 4: Token valid, TAPI deviceId TIDAK COCOK
+        result.status = "error";
+        result.message = "Token ini telah terkunci di perangkat lain.";
+        sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Mencoba login dari perangkat baru (tidak cocok).");
+      }
+
+      break; // Hentikan loop
+    }
+  }
+
+  // Jika token tidak ditemukan sama sekali
+  if (!tokenFound && token) { // Hanya kirim notif jika token diisi
+    sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Token tidak ditemukan.");
+  }
+
+  // 5. Kembalikan hasil sebagai JSON
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+/**
+ * Fungsi tes manual untuk notifikasi Telegram
+ */
+function tesNotifikasi() {
+  // Pastikan Anda sudah mengisi TOKEN dan CHAT_ID di atas
+  sendTelegramNotification("Ini adalah pesan tes dari Google Apps Script.");
+}
