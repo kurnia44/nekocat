@@ -1,133 +1,353 @@
-{
-  "name": "Catuserbot",
-  "description": "A telethon userbot based on snapdragon code(xtratgbot) .Easy to use and friendly bot . Maintained by Sandeep ",
-  "logo": "https://telegra.ph/file/3d60313110c58684b31ea.jpg",
-  "keywords": [
-    "telegram",
-    "userbot",
-    "plugin",
-    "modular",
-    "productivity"
-  ],
-  "repository": "https://github.com/sandy1709/catuserbot/",
-  "website": "#TODO",
-  "success_url": "#TODO",
-  "env": {
-    "ENV": {
-      "description": "Setting this to ANYTHING will enable heroku.",
-      "value": "ANYTHING"
-    },
-    "TMP_DOWNLOAD_DIRECTORY": {
-      "description": "Where downloaded files will go.",
-      "value": "./DOWNLOADS/",
-      "required": false
-    },
-    "ALIVE_NAME": {
-      "description": "give your name",
-      "value": ""
-    },
-    "APP_ID": {
-      "description": "Get this value from my.telegram.org! Please do not steal",
-      "value": ""
-    },
-    "API_HASH": {
-      "description": "Get this value from my.telegram.org! Please do not steal",
-      "value": ""
-    },
-    "STRING_SESSION": {
-      "description": "Get this value by running python3 telesetup.py locally",
-      "value": ""
-    },
-    "TG_BOT_USER_NAME_BF_HER": {
-      "description": "Needed for inline buttons maker. Make a bot at http://telegram.dog/BotFather and get the username of your bot",
-      "value": ""
-    },
-    "TG_BOT_TOKEN_BF_HER": {
-      "description": "Needed for inline buttons maker. Make a bot at http://telegram.dog/BotFather and get the token of your bot.Worth it. Get it.",
-      "value": ""
-    },
-    "HEROKU_API_KEY": {
-      "description": "Required for updating the bot and other stuff get it from https://dashboard.heroku.com/account",
-      "value": "",
-      "required": false
-    },
-    "HEROKU_APP_NAME": {
-      "description": "YOUR app name ",
-      "value": "",
-      "required": false
-    },
-    "DEFAULT_BIO": {
-      "description": "Your bio here note bio must have only 70characters or less.",
-      "value": "",
-      "required": false
-    },    
-    "MAX_FLOOD_IN_P_M_s": {
-      "description": "Maximum number of messages a person can send in pm before getting blocked. Value must be an integer. 6 by default.",
-      "value": "6",
-      "required": false
-    },
-    "OCR_SPACE_API_KEY": {
-      "description": "Required for OCR functionality. Get from https://ocr.space/ocrapi",
-      "value": "",
-      "required": false
-    },
-    "REM_BG_API_KEY": {
-      "description": "Required for Removing image background functionality. Get from https://www.remove.bg/",
-      "value": "",
-      "required": false
-    },
-    "ALIVE_PIC": {
-      "description": "the pic that to show in your alive message url.",
-      "value": "",
-      "required": false
-    },
-    "AUTONAME": {
-      "description": "for .autoname command",
-      "value": "",
-      "required": false
-    },
-    "LYDIA_API_KEY": {
-      "description": "Needed for Lydia AI. Follow https://telegra.ph/Lydia-09-05 to get your API.",
-      "value": "",
-      "required": false
-    },
-    "UB_BLACK_LIST_CHAT": {
-      "description": "set blacklist_chats where you do not want userbot features",
-      "value": "-1051754159",
-      "required": false
-    },
-    "DOWNLOAD_PFP_URL_CLOCK": {
-      "description": "Needed for autopic module. A url that is a preview link of your Profile Pic",
-      "value": "",
-      "required": false
-    },
-    "TZ": {
-      "description": "Required for Correct Time on autopic/get time. Know your timezone from http://www.timezoneconverter.com/cgi-bin/findzone.tzc",
-      "value": "Asia/Kolkata",
-      "required": false
+// --- KONFIGURASI ---
+// 1. Masukkan Token Bot Anda dari @BotFather
+var TELEGRAM_BOT_TOKEN = "7717843464:AAEu38flNxoQmP4p5Ku8lscgPJENV5z7ewQ";
+
+// 2. Masukkan Chat ID Anda (angka)
+var CHAT_ID = "1441654753"; // <-- ISI CHAT ID ANDA DI SINI
+
+// 3. Ganti jika nama sheet Anda berbeda
+var SHEET_NAME = "Sheet1";
+
+// 4. (BARU) Nama sheet untuk melacak pengguna trial
+var TRIAL_SHEET_NAME = "TrialUsers";
+// --------------------
+
+/**
+ * Fungsi untuk mengirim notifikasi ke Telegram
+ * (Milik Anda - Tidak ada perubahan)
+ */
+function sendTelegramNotification(message) {
+  if (TELEGRAM_BOT_TOKEN === "7717843464:AAEu38flNxoQmP4p5Ku8lscgPJENV5z7ewQ" || CHAT_ID === "1441654753") {
+    Logger.log("Token Bot/Chat ID belum diatur. Melewatkan notifikasi.");
+    return; // Jangan kirim jika belum diatur
+  }
+
+  var url = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage";
+  var payload = {
+    method: "post",
+    payload: {
+      chat_id: String(CHAT_ID),
+      text: message,
+      parse_mode: "HTML"
     }
-  },
-  "addons": [{
-    "plan": "heroku-postgresql",
-    "options": {
-      "version": "12"
+  };
+
+  try {
+    UrlFetchApp.fetch(url, payload);
+  } catch (e) {
+    Logger.log("Gagal mengirim notifikasi Telegram: " + e);
+  }
+}
+
+// ================================================================
+// --- FUNGSI BARU UNTUK LOGIKA TRIAL (DIMODIFIKASI) ---
+// (Milik Anda - Tidak ada perubahan)
+// ================================================================
+/**
+ * Menangani logika untuk login trial dinamis per deviceId.
+ */
+function handleTrialLogic(deviceId) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var trialSheet = ss.getSheetByName(TRIAL_SHEET_NAME);
+
+    // Jika sheet "TrialUsers" tidak ada, buat secara otomatis
+    if (!trialSheet) {
+      trialSheet = ss.insertSheet(TRIAL_SHEET_NAME);
+      // --- PERUBAHAN: Header baru (Kolom A, B, C, D, E) ---
+      trialSheet.getRange("A1:E1").setValues([
+        ["DeviceId", "LoginCount (Terpakai)", "MaxTrialLimit (Batas)", 2, "<- Default Trial (untuk user baru)"]
+      ]); 
+      trialSheet.getRange("A1:C1, E1").setFontWeight("bold");
+      trialSheet.getRange("D1").setFontWeight("bold").setFontColor("#ff0000"); // Beri warna merah pada angka
+      Logger.log("Sheet " + TRIAL_SHEET_NAME + " berhasil dibuat.");
     }
-  }],
-  "buildpacks": [{
-    "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest"
-  },{
-    "url":"https://github.com/amivin/aria2-heroku.git"
-  },{
-    "url":"https://github.com/heroku/heroku-buildpack-google-chrome"
-  },{
-    "url":"https://github.com/heroku/heroku-buildpack-chromedriver"
-  },{
-    "url": "https://github.com/opendoor-labs/heroku-buildpack-p7zip"
-  },{
-    "url": "https://github.com/heroku/heroku-buildpack-apt.git"
-  },{
-    "url": "https://github.com/chrismytton/heroku-buildpack-jq"
-  },{
-    "url": "heroku/python"
-  }]
+
+    var data = trialSheet.getDataRange().getValues();
+    
+    // --- PERUBAHAN: Baca batas trial default dari header (Sel D1) ---
+    var defaultTrialLimit = 2; // Default fallback
+    if (data.length > 0 && data[0][3] && !isNaN(parseInt(data[0][3], 10))) {
+      // data[0][3] adalah baris pertama (indeks 0), kolom keempat (indeks 3) = Sel D1
+      defaultTrialLimit = parseInt(data[0][3], 10);
+    }
+    // --- AKHIR PERUBAHAN ---
+
+    var userRow = -1; // Index baris user (1-based)
+    var loginCount = 0;
+    var maxLimitForThisUser = 0; // Batas trial khusus untuk device ini
+
+    // 1. Cari deviceId di sheet TrialUsers (mulai dari baris 1 untuk skip header)
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] == deviceId) { // Kolom A: DeviceId
+        userRow = i + 1; // (i adalah 0-based, +1 jadi 1-based untuk getRange)
+        loginCount = parseInt(data[i][1], 10) || 0; // Kolom B: LoginCount (Terpakai)
+        maxLimitForThisUser = parseInt(data[i][2], 10) || 0; // Kolom C: MaxTrialLimit (Batas)
+        break;
+      }
+    }
+
+    var result = {};
+
+    if (userRow === -1) {
+      // --- KASUS 1: USER TRIAL BARU (Login ke-1) ---
+      var newLoginCount = 1;
+      maxLimitForThisUser = defaultTrialLimit; // Gunakan default dari D1
+      
+      // Tulis baris baru: [deviceId, 1, (angka default dari D1)]
+      trialSheet.appendRow([deviceId, newLoginCount, maxLimitForThisUser]); 
+      
+      var sisaTrial = maxLimitForThisUser - newLoginCount;
+      sisaTrial = Math.max(0, sisaTrial); // Pastikan tidak negatif
+      
+      result = {
+        status: "success",
+        message: "Trial berhasil. Sisa " + sisaTrial + "x login.",
+        expiryDate: "Trial", 
+        remainingLogins: sisaTrial
+      };
+      sendTelegramNotification("🚀 TRIAL LOGIN (Baru)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+
+    } else if (loginCount < maxLimitForThisUser) {
+      // --- KASUS 2: USER TRIAL LAMA (Masih ada jatah) ---
+      // 'maxLimitForThisUser' dibaca dari Kolom C baris ini
+      var newLoginCount = loginCount + 1;
+      trialSheet.getRange(userRow, 2).setValue(newLoginCount); // Update Kolom B
+      
+      var sisaTrial = maxLimitForThisUser - newLoginCount;
+      var pesan = (sisaTrial === 0) ? "Trial terakhir Anda berhasil." : "Trial berhasil. Sisa " + sisaTrial + "x login.";
+      
+      result = {
+        status: "success",
+        message: pesan,
+        expiryDate: "Trial",
+        remainingLogins: sisaTrial
+      };
+      sendTelegramNotification("🚀 TRIAL LOGIN (Ulang)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+
+    } else {
+      // --- KASUS 3: JATAH TRIAL HABIS (loginCount >= maxLimitForThisUser) ---
+      result = {
+        status: "error",
+        message: "Masa trial Anda telah habis. Silakan beli token."
+      };
+      sendTelegramNotification("❌ TRIAL GAGAL\n<b>Perangkat:</b> " + deviceId + "\n<b>Alasan:</b> Jatah trial habis (" + loginCount + "/" + maxLimitForThisUser + "x).");
+    }
+
+    // Kembalikan hasil trial
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (e) {
+    // Tangkap error spesifik untuk trial
+    var errorResult = { status: "error", message: "Terjadi error pada server trial: " + e.message };
+    sendTelegramNotification("❌ ERROR PADA FUNGSI TRIAL:\n" + e.message);
+    return ContentService.createTextOutput(JSON.stringify(errorResult))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+
+/**
+ * Fungsi utama yang menangani permintaan
+ * (Milik Anda - Tidak ada perubahan)
+ */
+function doGet(e) {
+  // 1. Ambil parameter
+  var token = e.parameter.token;
+  var deviceId = e.parameter.deviceId; 
+
+  // ================================================================
+  // --- INTERSEP PERMINTAAN TRIAL ---
+  // ================================================================
+  if (token === "TRIAL_REQUEST") {
+    if (!deviceId) {
+       var errorResult = { status: "error", message: "DeviceId tidak ditemukan untuk trial." };
+       return ContentService.createTextOutput(JSON.stringify(errorResult))
+         .setMimeType(ContentService.MimeType.JSON);
+    }
+    return handleTrialLogic(deviceId);
+  }
+  // ================================================================
+  // --- AKHIR BLOK TRIAL ---
+  // ================================================================
+
+  // Jika token BUKAN "TRIAL_REQUEST", jalankan logika token normal Anda
+  
+  // 2. Akses Spreadsheet
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  var dataRange = sheet.getRange(1, 1, sheet.getLastRow(), 5); 
+  var values = dataRange.getValues();
+
+  // 3. Siapkan variabel hasil
+  var result = {
+    status: "error",
+    message: "Token tidak ditemukan"
+  };
+
+  var today = new Date();
+  today.setHours(0, 0, 0, 0); 
+  var tokenFound = false;
+
+  // 4. Loop untuk memeriksa token, tanggal, dan deviceId
+  for (var i = 0; i < values.length; i++) {
+    var sheetToken = values[i][0];     // Kolom A
+    var expiryDate = new Date(values[i][1]); // Kolom B
+    var storedDeviceId = values[i][2]; // Kolom C
+    var loginLimit = values[i][3]; // Kolom D (Batas Maks)
+    var loginCount = values[i][4]; // Kolom E (Jumlah Terpakai)
+
+    expiryDate.setHours(0, 0, 0, 0);
+
+    if (sheetToken == token) {
+      tokenFound = true;
+      var remainingDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+      
+      if (expiryDate < today) {
+        // Kasus 1: Token ditemukan TAPI kedaluwarsa
+        result.status = "error";
+        result.message = "Token telah kedaluwarsa";
+      
+      } else if (typeof loginLimit === 'number' && loginLimit > 0 && typeof loginCount === 'number' && loginCount >= loginLimit) {
+        // Kasus 1b: Token valid, TAPI batas login habis
+        result.status = "error";
+        result.message = "Token telah mencapai batas penggunaan login.";
+        sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Batas penggunaan login ("+loginLimit+") telah habis.");
+
+      } else if (storedDeviceId == "") {
+        // Kasus 2: Token valid, belum kedaluwarsa, BELUM DIKLAIM, dan batas login OK
+        
+        var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
+        sheet.getRange(i + 1, 5).setValue(newLoginCount); 
+        sheet.getRange(i + 1, 3).setValue(deviceId); 
+        
+        result.status = "success";
+        result.message = "Token diterima dan berhasil dikunci ke perangkat ini.";
+        
+        var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
+        result.expiryDate = formattedExpiry;
+        result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited"; 
+
+        sendTelegramNotification("✅ LOGIN BERHASIL (Klaim Baru)\n<b>Token:</b> " + token + "\n<b>Perangkat:</b> " + deviceId + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
+
+      } else if (storedDeviceId == deviceId) {
+        // Kasus 3: Token valid, DAN deviceId cocok
+        
+        var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
+        sheet.getRange(i + 1, 5).setValue(newLoginCount); 
+
+        result.status = "success";
+        result.message = "Token diterima";
+        
+        var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
+        result.expiryDate = formattedExpiry;
+        result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited";
+
+        sendTelegramNotification("✅ LOGIN BERHASIL (Ulang)\n<b>Token:</b> " + token + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
+
+      } else {
+        // Kasus 4: Token valid, TAPI deviceId TIDAK COCOK
+        result.status = "error";
+        result.message = "Token ini telah terkunci di perangkat lain.";
+        sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Mencoba login dari perangkat baru (tidak cocok).");
+      }
+
+      break; // Hentikan loop
+    }
+  }
+
+  // Jika token tidak ditemukan sama sekali
+  if (!tokenFound && token) { 
+    sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Token tidak ditemukan.");
+  }
+
+  // 5. Kembalikan hasil sebagai JSON
+  return ContentService.createTextOutput(JSON.stringify(result))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+/**
+ * Fungsi tes manual untuk notifikasi Telegram
+ * (Milik Anda - Tidak ada perubahan)
+ */
+function tesNotifikasi() {
+  // Pastikan Anda sudah mengisi TOKEN dan CHAT_ID di atas
+  sendTelegramNotification("Ini adalah pesan tes dari Google Apps Script.");
+}
+
+// ================================================================
+// --- KODE BARU UNTUK MENERIMA ORDER FOTO ---
+// Ini adalah kode TAMBAHAN untuk menangani formulir order
+// ================================================================
+
+/**
+ * Fungsi BARU yang menangani permintaan POST (dari order.html)
+ */
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+
+    // Cek apakah ini adalah kiriman dari formulir order
+    if (data.action === 'submitOrder') {
+      return handleOrderSubmit(data);
+    }
+
+    // Jika ada aksi POST lain di masa depan
+    return ContentService.createTextOutput(JSON.stringify({status: "error", message: "Aksi POST tidak diketahui"}))
+        .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    Logger.log("Error doPost: " + error.message);
+    Logger.log("Data POST yang diterima: " + e.postData.contents);
+    return ContentService.createTextOutput(JSON.stringify({status: "error", message: "Server error POST: " + error.message}))
+        .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Fungsi HELPER BARU untuk mengirim foto order ke Telegram
+ */
+function handleOrderSubmit(data) {
+  // Ambil token bot dan chat ID dari data yang dikirim oleh order.js
+  var botToken = data.botToken; 
+  var chatId = data.chatId;     
+  var telegramUrl = "https://api.telegram.org/bot" + botToken + "/sendPhoto";
+
+  // 1. Buat pesan caption
+  var caption = "<b>🔔 ORDER TOKEN BARU 🔔</b>\n\n";
+  caption += "<b>Device ID:</b>\n<code>" + data.deviceId + "</code>\n\n";
+  caption += "<b>Paket:</b> " + data.tier + "\n";
+  caption += "<b>Harga:</b> " + data.price + "\n";
+  
+  // 2. Decode gambar Base64
+  var base64Data = data.image.split(',')[1]; // Ambil data base64 setelah "data:image/png;base64,"
+  var decodedImage = Utilities.base64Decode(base64Data);
+  var imageBlob = Utilities.newBlob(decodedImage, 'image/png', 'bukti_transfer.png'); // Tentukan tipe mime dan nama file
+
+  // 3. Siapkan payload untuk Telegram
+  var payload = {
+    'method': 'post',
+    'payload': {
+      'chat_id': chatId,
+      'caption': caption,
+      'parse_mode': 'HTML',
+      'photo': imageBlob
+    }
+  };
+
+  // 4. Kirim ke Telegram
+  try {
+    UrlFetchApp.fetch(telegramUrl, payload);
+    
+    // Kirim respons sukses kembali ke browser (meskipun tidak dibaca)
+    return ContentService.createTextOutput(JSON.stringify({status: "success", message: "Order terkirim"}))
+        .setMimeType(ContentService.MimeType.JSON);
+        
+  } catch (err) {
+    Logger.log("Gagal kirim ke Telegram (Order Bot): " + err.message);
+    // Jika gagal kirim ke Telegram, kirim error kembali
+    return ContentService.createTextOutput(JSON.stringify({status: "error", message: "Gagal kirim ke Telegram: " + err.message}))
+        .setMimeType(ContentService.MimeType.JSON);
+  }
 }
