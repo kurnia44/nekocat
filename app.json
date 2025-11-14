@@ -1,9 +1,9 @@
 // --- KONFIGURASI ---
 // 1. Token Bot VALIDASI (Bot Anda yang lama)
-var TELEGRAM_BOT_TOKEN = ":AAFTyfRG9B5mZi04M_2feIr4_JxQ7X9pikM";
+var TELEGRAM_BOT_TOKEN = "8238029335:AAFTyfRG9B5mZi04M_2feIr4_JxQ7X9pikM"; // <-- Token Anda dari file
 
 // 2. Chat ID VALIDASI (Chat ID Anda yang lama)
-var CHAT_ID = "1441654753"; // <-- Pastikan ini terisi (Anda mengosongkannya di file Anda)
+var CHAT_ID = "1441654753"; // <-- Pastikan ini terisi
 
 // 3. Nama Sheet Validasi
 var SHEET_NAME = "Sheet1";
@@ -13,10 +13,10 @@ var TRIAL_SHEET_NAME = "TrialUsers";
 
 // 5. ========== PERUBAHAN DI SINI ==========
 //    Masukkan Token Bot ORDER (Bot BARU Anda)
-var ORDER_BOT_TOKEN = "7717843464:AAEu38flNxoQmP4p5Ku8lscgPJENV5z7ewQ"; // <-- INI TOKEN BOT ORDER
+var ORDER_BOT_TOKEN = "7717843464:AAEu38flNxoQmP4p5Ku8lscgPJENV5z7ewQ"; // <-- Token Anda dari order.js
 
 // 6. Masukkan Chat ID ADMIN untuk ORDER
-var ORDER_CHAT_ID = "1441654753"; // <-- INI CHAT ID ADMIN ORDER
+var ORDER_CHAT_ID = "1441654753"; // <-- Chat ID Anda dari order.js
 // ------------------------------------------
 
 
@@ -29,7 +29,7 @@ function sendTelegramNotification(message) {
     Logger.log("Token Bot/Chat ID Validasi belum diatur. Melewatkan notifikasi.");
     return; 
   }
-  // ... (Sisa kode fungsi ini milik Anda, tidak berubah) ...
+
   var url = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage";
   var payload = {
     method: "post",
@@ -52,7 +52,6 @@ function sendTelegramNotification(message) {
 // (Milik Anda - Tidak ada perubahan)
 // ================================================================
 function handleTrialLogic(deviceId) {
-  // ... (Semua kode 'handleTrialLogic' Anda ada di sini, tidak berubah) ...
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var trialSheet = ss.getSheetByName(TRIAL_SHEET_NAME);
@@ -217,7 +216,6 @@ function tesNotifikasi() {
 
 // ================================================================
 // --- KODE BARU UNTUK MENERIMA ORDER FOTO ---
-// Ini adalah kode TAMBAHAN untuk menangani formulir order
 // ================================================================
 
 /**
@@ -243,17 +241,36 @@ function doPost(e) {
  * Fungsi HELPER BARU untuk mengirim foto order ke Telegram
  */
 function handleOrderSubmit(data) {
-  // ========== PERUBAHAN DI SINI ==========
-  // Ambil token bot dan chat ID dari KONFIGURASI DI ATAS, bukan dari 'data'
   var botToken = ORDER_BOT_TOKEN; 
   var chatId = ORDER_CHAT_ID;     
-  // =======================================
+
+  if (!botToken || !chatId || botToken === "" || chatId === "") {
+    Logger.log("Token Bot/Chat ID Order belum diatur.");
+    return ContentService.createTextOutput(JSON.stringify({status: "error", message: "Server error: Konfigurasi bot order belum diatur."}))
+        .setMimeType(ContentService.MimeType.JSON);
+  }
 
   var telegramUrl = "https://api.telegram.org/bot" + botToken + "/sendPhoto";
 
   // 1. Buat pesan caption (mengambil dari 'data' yang dikirim order.js)
   var caption = "<b>🔔 ORDER TOKEN BARU 🔔</b>\n\n";
   caption += "<b>Device ID:</b>\n<code>" + data.deviceId + "</code>\n\n";
+
+  // --- PERUBAHAN DI SINI ---
+  var rawNumber = String(data.whatsapp).trim(); // Ambil nomor asli untuk ditampilkan
+  var cleanNumber = rawNumber.replace(/[^0-9]/g, ''); // Hapus semua non-angka
+
+  // Cek jika nomor Indonesia diawali 0, ganti dengan 62
+  if (cleanNumber.startsWith('0')) {
+      cleanNumber = '62' + cleanNumber.substring(1);
+  }
+  
+  var waLink = "https://wa.me/" + cleanNumber;
+  
+  // Tampilkan nomor asli sebagai teks link, tapi link-nya ke nomor yang sudah bersih
+  caption += "<b>No. WA Pembeli:</b> <a href='" + waLink + "'>" + rawNumber + "</a>\n";
+  // --- AKHIR PERUBAHAN ---
+
   caption += "<b>Paket:</b> " + data.tier + "\n";
   caption += "<b>Harga:</b> " + data.price + "\n";
   
