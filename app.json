@@ -48,94 +48,121 @@ function sendTelegramNotification(message) {
 }
 
 // ================================================================
-// --- FUNGSI LOGIKA TRIAL ANDA ---
-// (Milik Anda - Tidak ada perubahan)
+// --- FUNGSI LOGIKA TRIAL ANDA (DIMODIFIKASI DENGAN LOCK) ---
 // ================================================================
 function handleTrialLogic(deviceId) {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var trialSheet = ss.getSheetByName(TRIAL_SHEET_NAME);
-    if (!trialSheet) {
-      trialSheet = ss.insertSheet(TRIAL_SHEET_NAME);
-      trialSheet.getRange("A1:E1").setValues([
-        ["DeviceId", "LoginCount (Terpakai)", "MaxTrialLimit (Batas)", 2, "<- Default Trial (untuk user baru)"]
-      ]); 
-      trialSheet.getRange("A1:C1, E1").setFontWeight("bold");
-      trialSheet.getRange("D1").setFontWeight("bold").setFontColor("#ff0000");
-      Logger.log("Sheet " + TRIAL_SHEET_NAME + " berhasil dibuat.");
+  
+  // --- PERBAIKAN: KUNCI SCRIPT ---
+  var lock = LockService.getScriptLock();
+  var lockAcquired = false;
+  
+  try { // Try untuk Lock
+    lockAcquired = lock.tryLock(15000); // Coba kunci selama 15 detik
+    if (!lockAcquired) {
+      // Jika server sibuk, kirim error
+      var busyResult = { status: "error", message: "Server sedang sibuk memproses permintaan lain. Coba lagi." };
+      sendTelegramNotification("⚠️ PERINGATAN (TRIAL)\n<b>Perangkat:</b> " + deviceId + "\n<b>Alasan:</b> Gagal mendapatkan lock (server sibuk).");
+      return ContentService.createTextOutput(JSON.stringify(busyResult))
+        .setMimeType(ContentService.MimeType.JSON);
     }
-    var data = trialSheet.getDataRange().getValues();
-    var defaultTrialLimit = 2; 
-    if (data.length > 0 && data[0][3] && !isNaN(parseInt(data[0][3], 10))) {
-      defaultTrialLimit = parseInt(data[0][3], 10);
-    }
-    var userRow = -1; 
-    var loginCount = 0;
-    var maxLimitForThisUser = 0; 
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0] == deviceId) { 
-        userRow = i + 1; 
-        loginCount = parseInt(data[i][1], 10) || 0; 
-        maxLimitForThisUser = parseInt(data[i][2], 10) || 0; 
-        break;
+    
+    // --- SEMUA LOGIKA ASLI SEKARANG AMAN DI DALAM KUNCI ---
+    // (Ini adalah try...catch asli Anda, sekarang di dalam lock)
+    try { 
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var trialSheet = ss.getSheetByName(TRIAL_SHEET_NAME);
+      if (!trialSheet) {
+        trialSheet = ss.insertSheet(TRIAL_SHEET_NAME);
+        trialSheet.getRange("A1:E1").setValues([
+          ["DeviceId", "LoginCount (Terpakai)", "MaxTrialLimit (Batas)", 2, "<- Default Trial (untuk user baru)"]
+        ]); 
+        trialSheet.getRange("A1:C1, E1").setFontWeight("bold");
+        trialSheet.getRange("D1").setFontWeight("bold").setFontColor("#ff0000");
+        Logger.log("Sheet " + TRIAL_SHEET_NAME + " berhasil dibuat.");
       }
+      var data = trialSheet.getDataRange().getValues();
+      var defaultTrialLimit = 2; 
+      if (data.length > 0 && data[0][3] && !isNaN(parseInt(data[0][3], 10))) {
+        defaultTrialLimit = parseInt(data[0][3], 10);
+      }
+      var userRow = -1; 
+      var loginCount = 0;
+      var maxLimitForThisUser = 0; 
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][0] == deviceId) { 
+          userRow = i + 1; 
+          loginCount = parseInt(data[i][1], 10) || 0; 
+          maxLimitForThisUser = parseInt(data[i][2], 10) || 0; 
+          break;
+        }
+      }
+      var result = {};
+      if (userRow === -1) {
+        var newLoginCount = 1;
+        maxLimitForThisUser = defaultTrialLimit; 
+        trialSheet.appendRow([deviceId, newLoginCount, maxLimitForThisUser]); // <== Operasi Tulis
+        var sisaTrial = maxLimitForThisUser - newLoginCount;
+        sisaTrial = Math.max(0, sisaTrial); 
+        result = {
+          status: "success",
+          message: "Trial berhasil. Sisa " + sisaTrial + "x login.",
+          expiryDate: "Trial", 
+          remainingLogins: sisaTrial
+        };
+        sendTelegramNotification("🚀 TRIAL LOGIN (Baru)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+      } else if (loginCount < maxLimitForThisUser) {
+        var newLoginCount = loginCount + 1;
+        trialSheet.getRange(userRow, 2).setValue(newLoginCount); // <== Operasi Tulis
+        var sisaTrial = maxLimitForThisUser - newLoginCount;
+        var pesan = (sisaTrial === 0) ? "Trial terakhir Anda berhasil." : "Trial berhasil. Sisa " + sisaTrial + "x login.";
+        result = {
+          status: "success",
+          message: pesan,
+          expiryDate: "Trial",
+          remainingLogins: sisaTrial
+        };
+        sendTelegramNotification("🚀 TRIAL LOGIN (Ulang)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+      } else {
+        result = {
+          status: "error",
+          message: "Masa trial Anda telah habis. Silakan beli token."
+        };
+        sendTelegramNotification("❌ TRIAL GAGAL\n<b>Perangkat:</b> " + deviceId + "\n<b>Alasan:</b> Jatah trial habis (" + loginCount + "/" + maxLimitForThisUser + "x).");
+      }
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    
+    } catch (e) { // Ini adalah catch asli Anda
+      var errorResult = { status: "error", message: "Terjadi error pada server trial: " + e.message };
+      sendTelegramNotification("❌ ERROR PADA FUNGSI TRIAL:\n" + e.message);
+      return ContentService.createTextOutput(JSON.stringify(errorResult))
+        .setMimeType(ContentService.MimeType.JSON);
     }
-    var result = {};
-    if (userRow === -1) {
-      var newLoginCount = 1;
-      maxLimitForThisUser = defaultTrialLimit; 
-      trialSheet.appendRow([deviceId, newLoginCount, maxLimitForThisUser]); 
-      var sisaTrial = maxLimitForThisUser - newLoginCount;
-      sisaTrial = Math.max(0, sisaTrial); 
-      result = {
-        status: "success",
-        message: "Trial berhasil. Sisa " + sisaTrial + "x login.",
-        expiryDate: "Trial", 
-        remainingLogins: sisaTrial
-      };
-      sendTelegramNotification("🚀 TRIAL LOGIN (Baru)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
-    } else if (loginCount < maxLimitForThisUser) {
-      var newLoginCount = loginCount + 1;
-      trialSheet.getRange(userRow, 2).setValue(newLoginCount); 
-      var sisaTrial = maxLimitForThisUser - newLoginCount;
-      var pesan = (sisaTrial === 0) ? "Trial terakhir Anda berhasil." : "Trial berhasil. Sisa " + sisaTrial + "x login.";
-      result = {
-        status: "success",
-        message: pesan,
-        expiryDate: "Trial",
-        remainingLogins: sisaTrial
-      };
-      sendTelegramNotification("🚀 TRIAL LOGIN (Ulang)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
-    } else {
-      result = {
-        status: "error",
-        message: "Masa trial Anda telah habis. Silakan beli token."
-      };
-      sendTelegramNotification("❌ TRIAL GAGAL\n<b>Perangkat:</b> " + deviceId + "\n<b>Alasan:</b> Jatah trial habis (" + loginCount + "/" + maxLimitForThisUser + "x).");
+    // --- AKHIR LOGIKA AMAN ---
+
+  } finally {
+    // --- PERBAIKAN: Selalu lepaskan kunci ---
+    if (lockAcquired) {
+      lock.releaseLock();
     }
-    return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (e) {
-    var errorResult = { status: "error", message: "Terjadi error pada server trial: " + e.message };
-    sendTelegramNotification("❌ ERROR PADA FUNGSI TRIAL:\n" + e.message);
-    return ContentService.createTextOutput(JSON.stringify(errorResult))
-      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 /**
  * Fungsi doGet (Validasi Token)
- * (Milik Anda - Tidak ada perubahan)
+ * (DIMODIFIKASI DENGAN LOCK)
  */
 function doGet(e) {
   var token = e.parameter.token;
   var deviceId = e.parameter.deviceId; 
+  
   if (token === "TRIAL_REQUEST") {
     if (!deviceId) {
        var errorResult = { status: "error", message: "DeviceId tidak ditemukan untuk trial." };
        return ContentService.createTextOutput(JSON.stringify(errorResult))
          .setMimeType(ContentService.MimeType.JSON);
     }
+    // Panggil fungsi trial yang sekarang sudah aman (ada lock di dalamnya)
     return handleTrialLogic(deviceId);
   }
   
@@ -152,49 +179,93 @@ function doGet(e) {
 
   for (var i = 0; i < values.length; i++) {
     var sheetToken = values[i][0];     
-    var expiryDate = new Date(values[i][1]); 
-    var storedDeviceId = values[i][2]; 
-    var loginLimit = values[i][3]; 
-    var loginCount = values[i][4]; 
-
-    expiryDate.setHours(0, 0, 0, 0);
 
     if (sheetToken == token) {
       tokenFound = true;
-      var remainingDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
       
-      if (expiryDate < today) {
-        result.status = "error";
-        result.message = "Token telah kedaluwarsa";
-      } else if (typeof loginLimit === 'number' && loginLimit > 0 && typeof loginCount === 'number' && loginCount >= loginLimit) {
-        result.status = "error";
-        result.message = "Token telah mencapai batas penggunaan login.";
-        sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Batas penggunaan login ("+loginLimit+") telah habis.");
-      } else if (storedDeviceId == "") {
-        var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
-        sheet.getRange(i + 1, 5).setValue(newLoginCount); 
-        sheet.getRange(i + 1, 3).setValue(deviceId); 
-        result.status = "success";
-        result.message = "Token diterima dan berhasil dikunci ke perangkat ini.";
-        var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
-        result.expiryDate = formattedExpiry;
-        result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited"; 
-        sendTelegramNotification("✅ LOGIN BERHASIL (Klaim Baru)\n<b>Token:</b> " + token + "\n<b>Perangkat:</b> " + deviceId + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
-      } else if (storedDeviceId == deviceId) {
-        var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
-        sheet.getRange(i + 1, 5).setValue(newLoginCount); 
-        result.status = "success";
-        result.message = "Token diterima";
-        var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
-        result.expiryDate = formattedExpiry;
-        result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited";
-        sendTelegramNotification("✅ LOGIN BERHASIL (Ulang)\n<b>Token:</b> " + token + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
-      } else {
-        result.status = "error";
-        result.message = "Token ini telah terkunci di perangkat lain.";
-        sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Mencoba login dari perangkat baru (tidak cocok).");
+      // --- PERBAIKAN: KUNCI SCRIPT ---
+      var lock = LockService.getScriptLock();
+      var lockAcquired = false;
+      
+      try { // Try untuk Lock
+        lockAcquired = lock.tryLock(15000); // Kunci selama 15 detik
+        if (!lockAcquired) {
+          result.status = "error";
+          result.message = "Server sedang sibuk, coba lagi dalam beberapa detik.";
+          sendTelegramNotification("⚠️ PERINGATAN (TOKEN)\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Gagal mendapatkan lock (server sibuk).");
+          break; // Hentikan loop 'for'
+        }
+        
+        // --- SEKARANG AMAN: Baca ulang data baris INI (paling update) ---
+        // (i+1 karena 'i' adalah 0-based index, tapi sheet 1-based)
+        var currentRowValues = sheet.getRange(i + 1, 1, 1, 5).getValues()[0];
+        // [Kol A, Kol B,     Kol C,          Kol D,        Kol E]
+        // [Token, Expired,   DeviceId,       Batas Login,  Jumlah Terpakai]
+        
+        var expiryDate = new Date(currentRowValues[1]); // Kolom B
+        var storedDeviceId = currentRowValues[2]; // Kolom C
+        var loginLimit = currentRowValues[3]; // Kolom D
+        var loginCount = currentRowValues[4]; // Kolom E
+        
+        expiryDate.setHours(0, 0, 0, 0);
+        var remainingDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+        
+        // Mulai logika validasi Anda menggunakan data yang baru dibaca
+        if (expiryDate < today) {
+          result.status = "error";
+          result.message = "Token telah kedaluwarsa";
+        
+        } else if (typeof loginLimit === 'number' && loginLimit > 0 && typeof loginCount === 'number' && loginCount >= loginLimit) {
+          result.status = "error";
+          result.message = "Token telah mencapai batas penggunaan login.";
+          sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Batas penggunaan login ("+loginLimit+") telah habis.");
+        
+        } else if (storedDeviceId == "") {
+          var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
+          
+          // Operasi Tulis (Atomik)
+          sheet.getRange(i + 1, 3).setValue(deviceId); // Set DeviceId (Kolom C)
+          sheet.getRange(i + 1, 5).setValue(newLoginCount); // Set Count (Kolom E)
+          
+          result.status = "success";
+          result.message = "Token diterima dan berhasil dikunci ke perangkat ini.";
+          var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
+          result.expiryDate = formattedExpiry;
+          result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited"; 
+          sendTelegramNotification("✅ LOGIN BERHASIL (Klaim Baru)\n<b>Token:</b> " + token + "\n<b>Perangkat:</b> " + deviceId + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
+        
+        } else if (storedDeviceId == deviceId) {
+          var newLoginCount = (typeof loginCount === 'number' ? loginCount : 0) + 1;
+          
+          // Operasi Tulis (Atomik)
+          sheet.getRange(i + 1, 5).setValue(newLoginCount); // Set Count (Kolom E)
+
+          result.status = "success";
+          result.message = "Token diterima";
+          var formattedExpiry = Utilities.formatDate(expiryDate, "GMT+7", "dd MMMM yyyy");
+          result.expiryDate = formattedExpiry;
+          result.remainingLogins = (typeof loginLimit === 'number' && loginLimit > 0) ? (loginLimit - newLoginCount) : "Unlimited";
+          sendTelegramNotification("✅ LOGIN BERHASIL (Ulang)\n<b>Token:</b> " + token + "\n<b>Expired:</b> " + formattedExpiry + "\n<b>Sisa Login:</b> " + result.remainingLogins);
+        
+        } else {
+          result.status = "error";
+          result.message = "Token ini telah terkunci di perangkat lain.";
+          sendTelegramNotification("❌ LOGIN GAGAL\n<b>Token:</b> " + token + "\n<b>Alasan:</b> Mencoba login dari perangkat baru (tidak cocok).");
+        }
+        // --- Akhir Logika Aman ---
+
+      } catch (e) {
+          result.status = "error";
+          result.message = "Server error selama penguncian: " + e.message;
+      } finally {
+          // --- PERBAIKAN: Selalu lepaskan kunci ---
+          if (lockAcquired) {
+            lock.releaseLock();
+          }
       }
-      break; 
+      // --- AKHIR BLOK LOCK ---
+      
+      break; // Hentikan loop 'for' (sudah ada)
     }
   }
 
@@ -216,11 +287,9 @@ function tesNotifikasi() {
 
 // ================================================================
 // --- KODE BARU UNTUK MENERIMA ORDER FOTO ---
+// (Milik Anda - Tidak ada perubahan)
 // ================================================================
 
-/**
- * Fungsi BARU yang menangani permintaan POST (dari order.html)
- */
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
@@ -237,9 +306,6 @@ function doPost(e) {
   }
 }
 
-/**
- * Fungsi HELPER BARU untuk mengirim foto order ke Telegram
- */
 function handleOrderSubmit(data) {
   var botToken = ORDER_BOT_TOKEN; 
   var chatId = ORDER_CHAT_ID;     
@@ -252,45 +318,36 @@ function handleOrderSubmit(data) {
 
   var telegramUrl = "https://api.telegram.org/bot" + botToken + "/sendPhoto";
 
-  // 1. Buat pesan caption (mengambil dari 'data' yang dikirim order.js)
   var caption = "<b>🔔 ORDER TOKEN BARU 🔔</b>\n\n";
   caption += "<b>Device ID:</b>\n<code>" + data.deviceId + "</code>\n\n";
 
-  // --- PERUBAHAN DI SINI ---
-  var rawNumber = String(data.whatsapp).trim(); // Ambil nomor asli untuk ditampilkan
-  var cleanNumber = rawNumber.replace(/[^0-9]/g, ''); // Hapus semua non-angka
+  var rawNumber = String(data.whatsapp).trim(); 
+  var cleanNumber = rawNumber.replace(/[^0-9]/g, ''); 
 
-  // Cek jika nomor Indonesia diawali 0, ganti dengan 62
   if (cleanNumber.startsWith('0')) {
       cleanNumber = '62' + cleanNumber.substring(1);
   }
   
   var waLink = "https://wa.me/" + cleanNumber;
   
-  // Tampilkan nomor asli sebagai teks link, tapi link-nya ke nomor yang sudah bersih
   caption += "<b>No. WA Pembeli:</b> <a href='" + waLink + "'>" + rawNumber + "</a>\n";
-  // --- AKHIR PERUBAHAN ---
-
   caption += "<b>Paket:</b> " + data.tier + "\n";
   caption += "<b>Harga:</b> " + data.price + "\n";
   
-  // 2. Decode gambar Base64 (mengambil dari 'data')
   var base64Data = data.image.split(',')[1]; 
   var decodedImage = Utilities.base64Decode(base64Data);
   var imageBlob = Utilities.newBlob(decodedImage, 'image/png', 'bukti_transfer.png'); 
 
-  // 3. Siapkan payload untuk Telegram
   var payload = {
     'method': 'post',
     'payload': {
-      'chat_id': String(chatId), // Pastikan string
+      'chat_id': String(chatId), 
       'caption': caption,
       'parse_mode': 'HTML',
       'photo': imageBlob
     }
   };
 
-  // 4. Kirim ke Telegram
   try {
     UrlFetchApp.fetch(telegramUrl, payload);
     return ContentService.createTextOutput(JSON.stringify({status: "success", message: "Order terkirim"}))
