@@ -11,23 +11,22 @@ var SHEET_NAME = "Sheet1";
 // 4. Nama Sheet Trial
 var TRIAL_SHEET_NAME = "TrialUsers";
 
-// 5. ========== PERUBAHAN DI SINI ==========
-//    Masukkan Token Bot ORDER (Bot BARU Anda)
+// 5. Token Bot ORDER (Bot BARU Anda)
 var ORDER_BOT_TOKEN = "7717843464:AAEu38flNxoQmP4p5Ku8lscgPJENV5z7ewQ"; // <-- Token Anda dari order.js
 
-// 6. Masukkan Chat ID ADMIN untuk ORDER
+// 6. Chat ID ADMIN untuk ORDER
 var ORDER_CHAT_ID = "1441654753"; // <-- Chat ID Anda dari order.js
 // ------------------------------------------
 
 
 /**
- * Fungsi untuk mengirim notifikasi ke Telegram
- * (Milik Anda - Tidak ada perubahan)
+ * Fungsi untuk mengirim notifikasi ke Telegram (Validasi)
  */
 function sendTelegramNotification(message) {
-  if (TELEGRAM_BOT_TOKEN === ":AAFTyfRG9B5mZi04M_2feIr4_JxQ7X9pikM" || CHAT_ID === "") {
-    Logger.log("Token Bot/Chat ID Validasi belum diatur. Melewatkan notifikasi.");
-    return; 
+  if (TELEGRAM_BOT_TOKEN === "8238029335:AAFTyfRG9B5mZi04M_2feIr4_JxQ7X9pikM" || CHAT_ID === "1441654753") {
+    // Logger.log("Token Bot/Chat ID Validasi belum diatur. Melewatkan notifikasi.");
+    // return; 
+    // Di-bypass karena Anda sudah mengisi
   }
 
   var url = "https://api.telegram.org/bot" + TELEGRAM_BOT_TOKEN + "/sendMessage";
@@ -48,11 +47,11 @@ function sendTelegramNotification(message) {
 }
 
 // ================================================================
-// --- FUNGSI LOGIKA TRIAL ANDA (DIMODIFIKASI DENGAN LOCK) ---
+// --- FUNGSI LOGIKA TRIAL (DIMODIFIKASI DENGAN LOCK & LOG BARU) ---
 // ================================================================
 function handleTrialLogic(deviceId) {
   
-  // --- PERBAIKAN: KUNCI SCRIPT ---
+  // --- PERBAIKAN 1: KUNCI SCRIPT (Mencegah Race Condition) ---
   var lock = LockService.getScriptLock();
   var lockAcquired = false;
   
@@ -67,7 +66,6 @@ function handleTrialLogic(deviceId) {
     }
     
     // --- SEMUA LOGIKA ASLI SEKARANG AMAN DI DALAM KUNCI ---
-    // (Ini adalah try...catch asli Anda, sekarang di dalam lock)
     try { 
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var trialSheet = ss.getSheetByName(TRIAL_SHEET_NAME);
@@ -97,6 +95,8 @@ function handleTrialLogic(deviceId) {
         }
       }
       var result = {};
+      
+      // KASUS 1: USER TRIAL BARU
       if (userRow === -1) {
         var newLoginCount = 1;
         maxLimitForThisUser = defaultTrialLimit; 
@@ -109,7 +109,18 @@ function handleTrialLogic(deviceId) {
           expiryDate: "Trial", 
           remainingLogins: sisaTrial
         };
-        sendTelegramNotification("🚀 TRIAL LOGIN (Baru)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+        
+        // --- PERBAIKAN 2: LOGIKA PESAN TELEGRAM BARU (Sesuai permintaan Anda) ---
+        var logTitle = "🚀 TRIAL LOGIN (Baru)";
+        var logLabel = "Sisa Trial";
+        if (maxLimitForThisUser > 5) {
+          logTitle = "🔑 LOGIN VIA ID (Baru)";
+          logLabel = "Sisa Login";
+        }
+        sendTelegramNotification(logTitle + "\n<b>Perangkat:</b> " + deviceId + "\n<b>" + logLabel + ":</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+        // --- AKHIR PERBAIKAN 2 ---
+
+      // KASUS 2: USER TRIAL LAMA
       } else if (loginCount < maxLimitForThisUser) {
         var newLoginCount = loginCount + 1;
         trialSheet.getRange(userRow, 2).setValue(newLoginCount); // <== Operasi Tulis
@@ -121,7 +132,18 @@ function handleTrialLogic(deviceId) {
           expiryDate: "Trial",
           remainingLogins: sisaTrial
         };
-        sendTelegramNotification("🚀 TRIAL LOGIN (Ulang)\n<b>Perangkat:</b> " + deviceId + "\n<b>Sisa Trial:</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+        
+        // --- PERBAIKAN 2: LOGIKA PESAN TELEGRAM BARU (Sesuai permintaan Anda) ---
+        var logTitle = "🚀 TRIAL LOGIN (Ulang)";
+        var logLabel = "Sisa Trial";
+        if (maxLimitForThisUser > 5) {
+          logTitle = "🔑 LOGIN VIA ID (Ulang)";
+          logLabel = "Sisa Login";
+        }
+        sendTelegramNotification(logTitle + "\n<b>Perangkat:</b> " + deviceId + "\n<b>" + logLabel + ":</b> " + sisaTrial + "x (dari " + maxLimitForThisUser + ")");
+        // --- AKHIR PERBAIKAN 2 ---
+
+      // KASUS 3: JATAH HABIS
       } else {
         result = {
           status: "error",
@@ -141,7 +163,7 @@ function handleTrialLogic(deviceId) {
     // --- AKHIR LOGIKA AMAN ---
 
   } finally {
-    // --- PERBAIKAN: Selalu lepaskan kunci ---
+    // --- PERBAIKAN 1: Selalu lepaskan kunci ---
     if (lockAcquired) {
       lock.releaseLock();
     }
@@ -183,7 +205,7 @@ function doGet(e) {
     if (sheetToken == token) {
       tokenFound = true;
       
-      // --- PERBAIKAN: KUNCI SCRIPT ---
+      // --- PERBAIKAN 1: KUNCI SCRIPT (Mencegah Race Condition) ---
       var lock = LockService.getScriptLock();
       var lockAcquired = false;
       
@@ -197,9 +219,7 @@ function doGet(e) {
         }
         
         // --- SEKARANG AMAN: Baca ulang data baris INI (paling update) ---
-        // (i+1 karena 'i' adalah 0-based index, tapi sheet 1-based)
         var currentRowValues = sheet.getRange(i + 1, 1, 1, 5).getValues()[0];
-        // [Kol A, Kol B,     Kol C,          Kol D,        Kol E]
         // [Token, Expired,   DeviceId,       Batas Login,  Jumlah Terpakai]
         
         var expiryDate = new Date(currentRowValues[1]); // Kolom B
@@ -208,7 +228,6 @@ function doGet(e) {
         var loginCount = currentRowValues[4]; // Kolom E
         
         expiryDate.setHours(0, 0, 0, 0);
-        var remainingDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
         
         // Mulai logika validasi Anda menggunakan data yang baru dibaca
         if (expiryDate < today) {
@@ -258,7 +277,7 @@ function doGet(e) {
           result.status = "error";
           result.message = "Server error selama penguncian: " + e.message;
       } finally {
-          // --- PERBAIKAN: Selalu lepaskan kunci ---
+          // --- PERBAIKAN 1: Selalu lepaskan kunci ---
           if (lockAcquired) {
             lock.releaseLock();
           }
